@@ -40,6 +40,9 @@ const Tasks = () => {
         if (newTask.description.length > 200) {
             return Swal.fire("Error", "Description must be 200 characters or less!", "error");
         }
+        if (!newTask.dueDate) {
+            return Swal.fire("Error", "Please select a task completion due date.", "error");
+        }
         const res = await axiosPublic.post("/tasks", newTask);
         if (res.data) {
             Swal.fire("Task Successfully Created!")
@@ -83,14 +86,20 @@ const Tasks = () => {
 
         updatedTasks.splice(result.destination.index, 0, movedTask);
         setTasks(updatedTasks);
-        
+
         await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
+    };
+
+    const isOverdue = (dueDate) => {
+        const currentDate = new Date();
+        return new Date(dueDate) < currentDate;
     };
 
     return (
         <div className="container mx-auto px-3">
             <h1 className="text-3xl font-bold text-center mb-5 text-purple-500">Task Management System</h1>
             <div>
+                <label>Task Title</label>
                 <input
                     type="text"
                     name="title"
@@ -99,6 +108,8 @@ const Tasks = () => {
                     value={newTask.title}
                     onChange={handleChange}
                 />
+
+                <label>Task Description</label>
                 <textarea
                     name="description"
                     placeholder="Task Description"
@@ -107,6 +118,17 @@ const Tasks = () => {
                     onChange={handleChange}
                 />
 
+                <label>Task Due Date</label>
+                {/* Task Due date */}
+                <input
+                    type="date"
+                    name="dueDate"
+                    className="input input-bordered w-full mb-3"
+                    value={newTask.dueDate}
+                    onChange={handleChange}
+                />
+
+                <label>Task Category</label>
                 {/* Category Dropdown */}
                 <select
                     name="category"
@@ -119,11 +141,13 @@ const Tasks = () => {
                     <option value="Done">Done</option>
                 </select>
 
-                <button
-                    className="btn bg-purple-500 text-base-100 hover:bg-purple-700 w-full text-lg flex justify-center items-center"
-                    onClick={addTask}>
-                    <span>Add Task</span> <IoAddCircleOutline />
-                </button>
+                <div className="flex justify-center items-center">
+                    <button
+                        className="btn bg-purple-500 text-base-100 hover:bg-purple-700 text-lg flex justify-center items-center"
+                        onClick={addTask}>
+                        <span>Add Task</span> <IoAddCircleOutline />
+                    </button>
+                </div>
             </div>
 
             <div className="mt-5">
@@ -150,6 +174,9 @@ const Tasks = () => {
                                                         className="bg-base-100 p-3 rounded-lg mb-2 shadow-md flex flex-col justify-center items-center">
                                                         <h3 className="font-bold">{task.title}</h3>
                                                         <p>{task.description}</p>
+                                                        <p className={`text-sm ${isOverdue(task.dueDate) ? "text-red-600" : "text-green-600"}`}>
+                                                            Due Date: {new Date(task.dueDate).toLocaleDateString()}
+                                                        </p>
                                                         <button className="btn btn-sm btn-error mt-2 rounded-full"
                                                             onClick={() => deleteTask(task._id)}><FaRegTrashCan /></button>
                                                     </div>
