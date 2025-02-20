@@ -18,7 +18,7 @@ const Main = () => {
                 <section className="min-h-screen">
                     <Outlet></Outlet>
                 </section> :
-                <section className="min-h-screen pt-20">
+                <section className="min-h-screen my-5">
                     <Outlet></Outlet>
                 </section>
             }

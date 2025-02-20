@@ -8,7 +8,7 @@ import AuthProvider from './providers/AuthProvider';
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
-      <section className='bg-base-100'>
+      <section className='bg-purple-100'>
         <RouterProvider router={router}></RouterProvider>
       </section>
     </AuthProvider>
