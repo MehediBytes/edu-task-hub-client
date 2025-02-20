@@ -1,6 +1,6 @@
 import Main from "../layouts/Main/Main";
 import Home from "../pages/Home/Home/Home";
-import Login from "../pages/Home/Login/Login";
+import Login from "../pages/Login/Login";
 import ErrorPage from "../pages/ErrorPage/ErrorPage";
 import { createBrowserRouter } from "react-router";
 import PrivateRoute from "./PrivateRoute";

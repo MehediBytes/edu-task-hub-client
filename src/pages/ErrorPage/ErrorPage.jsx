@@ -8,7 +8,7 @@ const ErrorPage = () => {
             <p className="text-xl font-bold">404 - Page Not Found</p>
             <p className="pb-3 text-md font-medium text-gray-500">The page you are looking for might have been removed <br />had its name changed or is temporarily unavailable.</p>
             <Link to='/'>
-                <button className="px-4 py-2 rounded-full bg-blue-500 text-white hover:bg-blue-700">GO TO HOMEPAGE</button>
+                <button className="px-4 py-2 rounded-full bg-purple-600 text-white hover:bg-purple-700">GO TO HOMEPAGE</button>
             </Link>
         </div>
     );
