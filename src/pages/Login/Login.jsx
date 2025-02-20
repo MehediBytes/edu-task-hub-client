@@ -42,8 +42,14 @@ const Login = () => {
 
     return (
         <div className="container mx-auto px-5">
+            <motion.div initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8 }}
+                className="pt-5 text-center">
+                <h1 className="text-2xl text-purple-600 font-semibold">Wellcome to Edu-Task-Hub. Please Sign up for getting started.</h1>
+            </motion.div>
             <motion.div
-                className="md:flex md:justify-center md:items-center md:gap-20 mt-10"
+                className="md:flex md:justify-center md:items-center md:gap-20 pt-10"
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8 }}
