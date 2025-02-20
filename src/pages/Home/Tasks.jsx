@@ -39,14 +39,38 @@ const Tasks = () => {
         if (newTask.description.length > 200) {
             return Swal.fire("Error", "Description must be 200 characters or less!", "error");
         }
-        await axiosPublic.post("/tasks", newTask);
-        Swal.fire("Task Successfully Posted!")
+        const res = await axiosPublic.post("/tasks", newTask);
+        if (res.data) {
+            Swal.fire("Task Successfully Created!")
+        }
         setNewTask({ title: "", description: "", category: "To-Do" });
     };
 
     // Delete task
     const deleteTask = async (id) => {
-        await axiosPublic.delete(`/tasks/${id}`);
+        Swal.fire({
+            title: "Are you sure?",
+            text: "Do you want to delete the Task?",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#d33",
+            cancelButtonColor: "#3085d6",
+            confirmButtonText: "Yes, delete it!",
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const res = await axiosPublic.delete(`/tasks/${id}`);
+                    if (res.data?.deletedCount > 0) {
+                        Swal.fire("Deleted!", "The Task has been deleted.", "success");
+                    } else {
+                        Swal.fire("Error", "Failed to delete the Task.", "error");
+                    }
+                } catch (error) {
+                    console.error("Error deleting request:", error);
+                    Swal.fire("Error", "Failed to delete the request.", "error", error.message);
+                }
+            }
+        });
     };
 
     // Handle Drag & Drop
