@@ -4,11 +4,13 @@ import { FcGoogle } from "react-icons/fc";
 import useAuth from "../../hooks/useAuth";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router";
+import useAxiosPublic from "../../hooks/UseAxiosPublic";
 
 const Login = () => {
 
     const { googleSignIn, setUser } = useAuth();
     const navigate = useNavigate();
+    const axiosPublic = useAxiosPublic();
 
     const handleGoogleSignIn = () => {
         googleSignIn()
@@ -24,6 +26,17 @@ const Login = () => {
                     });
                 }
                 navigate("/")
+                const userInfo = {
+                    name: result.user?.displayName,
+                    email: result.user?.email,
+                    photo: result.user?.photoURL
+                }
+                axiosPublic.post('/users', userInfo)
+                    .then(res => {
+                        if (res.data?.email) {
+                            navigate("/");
+                        }
+                    })
             })
     }
 
