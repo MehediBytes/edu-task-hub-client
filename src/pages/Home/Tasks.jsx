@@ -10,18 +10,29 @@ const socket = io(import.meta.env.VITE_API_URL);
 
 const Tasks = () => {
     const [tasks, setTasks] = useState([]);
-    const [newTask, setNewTask] = useState({ title: "", description: "", category: "To-Do" });
+    const [newTask, setNewTask] = useState({ title: "", description: "", category: "To-Do", dueDate: "" });
     const axiosPublic = useAxiosPublic();
+    const [activityLog, setActivityLog] = useState([]);
+    const [showAllLogs, setShowAllLogs] = useState(false);
 
     // Fetch tasks from the backend
     const fetchTasks = async () => {
         const res = await axiosPublic.get("/tasks");
         setTasks(res.data);
     };
+    // Fetch logs from the backend
+    const fetchLogs = async () => {
+        const res = await axiosPublic.get("/logs");
+        setActivityLog(res.data);
+    };
 
     useEffect(() => {
         fetchTasks();
-        socket.on("taskUpdated", fetchTasks);
+        fetchLogs();
+        socket.on("taskUpdated", () => {
+            fetchTasks();
+            fetchLogs();
+        });
         return () => socket.off("taskUpdated");
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -33,7 +44,7 @@ const Tasks = () => {
 
     // Add task
     const addTask = async () => {
-        if (!newTask.title) return Swal.fire("Error", "Please Put Title. Title is required!", "error");
+        if (!newTask.title) return Swal.fire("Error", "Please Put A Title. Title is required.", "error");
         if (newTask.title.length > 50) {
             return Swal.fire("Error", "Title must be 50 characters or less!", "error");
         }
@@ -41,17 +52,18 @@ const Tasks = () => {
             return Swal.fire("Error", "Description must be 200 characters or less!", "error");
         }
         if (!newTask.dueDate) {
-            return Swal.fire("Error", "Please select a task completion due date.", "error");
+            return Swal.fire("Error", "Please select a due date!", "error");
         }
         const res = await axiosPublic.post("/tasks", newTask);
         if (res.data) {
-            Swal.fire("Task Successfully Created!")
+            Swal.fire("Success", "Task added!", "success");
+            await axiosPublic.post("/logs", { message: `Task "${newTask.title}" added` });
         }
-        setNewTask({ title: "", description: "", category: "To-Do" });
+        setNewTask({ title: "", description: "", category: "To-Do", dueDate: "" });
     };
 
     // Delete task
-    const deleteTask = async (id) => {
+    const deleteTask = async (id, title) => {
         Swal.fire({
             title: "Are you sure?",
             text: "Do you want to delete the Task?",
@@ -62,17 +74,11 @@ const Tasks = () => {
             confirmButtonText: "Yes, delete it!",
         }).then(async (result) => {
             if (result.isConfirmed) {
-                try {
-                    const res = await axiosPublic.delete(`/tasks/${id}`);
-                    if (res.data?.deletedCount > 0) {
-                        Swal.fire("Deleted!", "The Task has been deleted.", "success");
-                    } else {
-                        Swal.fire("Error", "Failed to delete the Task.", "error");
-                    }
-                } catch (error) {
-                    console.error("Error deleting request:", error);
-                    Swal.fire("Error", "Failed to delete the task.", "error", error.message);
-                }
+                await axiosPublic.delete(`/tasks/${id}`);
+                await axiosPublic.post("/logs", { message: `Task "${title}" deleted` }); // Log Activity
+                fetchTasks();
+                fetchLogs();
+                Swal.fire("Deleted!", "The Task has been deleted.", "success");
             }
         });
     };
@@ -88,12 +94,15 @@ const Tasks = () => {
         setTasks(updatedTasks);
 
         await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
+        await axiosPublic.post("/logs", { message: `Task "${movedTask.title}" moved to ${movedTask.category}` });
     };
 
     const isOverdue = (dueDate) => {
         const currentDate = new Date();
         return new Date(dueDate) < currentDate;
     };
+
+    const displayedLogs = showAllLogs ? activityLog : activityLog.slice(0, 10);
 
     return (
         <div className="container mx-auto px-3">
@@ -178,7 +187,7 @@ const Tasks = () => {
                                                             Due Date: {new Date(task.dueDate).toLocaleDateString()}
                                                         </p>
                                                         <button className="btn btn-sm btn-error mt-2 rounded-full"
-                                                            onClick={() => deleteTask(task._id)}><FaRegTrashCan /></button>
+                                                            onClick={() => deleteTask(task._id, task.title)}><FaRegTrashCan /></button>
                                                     </div>
                                                 )}
                                             </Draggable>
@@ -190,6 +199,25 @@ const Tasks = () => {
                     ))}
                 </div>
             </DragDropContext>
+            {/* Activity Log Section */}
+            <div className="mt-5 bg-purple-100 px-3 rounded-lg">
+                <h3 className="text-xl font-bold mb-3">Activity Log:</h3>
+                <ul>
+                    {displayedLogs.map((log, index) => (
+                        <li key={index} className="text-gray-700">
+                            <span className="font-bold">{index + 1}.</span> {log.message}
+                        </li>
+                    ))}
+                </ul>
+                {activityLog.length > 10 && (
+                    <button
+                        className="btn btn-sm bg-purple-500 text-base-100 hover:bg-purple-700 mt-3"
+                        onClick={() => setShowAllLogs(!showAllLogs)}
+                    >
+                        {showAllLogs ? "Show Less Logs" : "See More Logs"}
+                    </button>
+                )}
+            </div>
         </div>
     );
 };
