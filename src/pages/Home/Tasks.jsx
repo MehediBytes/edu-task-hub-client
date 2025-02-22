@@ -1,43 +1,25 @@
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import useAxiosPublic from "../../hooks/UseAxiosPublic";
 import Swal from "sweetalert2";
-import { io } from "socket.io-client";
 import { FaRegTrashCan } from "react-icons/fa6";
 import { IoAddCircleOutline } from "react-icons/io5";
-
-const socket = io(import.meta.env.VITE_API_URL);
+import useTasks from "../../hooks/useTasks";
+import useLogs from "../../hooks/useLogs";
 
 const Tasks = () => {
-    const [tasks, setTasks] = useState([]);
+    const [tasks, tasksLoading, tasksRefetch] = useTasks();
+    const [logs, logsLoading, logsRefetch] = useLogs();
     const [newTask, setNewTask] = useState({ title: "", description: "", category: "To-Do", dueDate: "" });
     const axiosPublic = useAxiosPublic();
     const [activityLog, setActivityLog] = useState([]);
     const [showAllLogs, setShowAllLogs] = useState(false);
 
-    // Fetch tasks from the backend
-    const fetchTasks = async () => {
-        const res = await axiosPublic.get("/tasks");
-        const sortedTask = res.data.sort((a, b) => a.orderIndex - b.orderIndex);
-        setTasks(sortedTask);
-    };
-
-    // Fetch logs from the backend
-    const fetchLogs = async () => {
-        const res = await axiosPublic.get("/logs");
-        setActivityLog(res.data);
-    };
-
+    // Fetch tasks and logs initially
     useEffect(() => {
-        fetchTasks();
-        fetchLogs();
-        socket.on("taskUpdated", () => {
-            fetchTasks();
-            fetchLogs();
-        });
-        return () => socket.off("taskUpdated");
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+        tasksRefetch();
+        logsRefetch();
+    }, [tasksRefetch, logsRefetch]);
 
     // Handle input changes
     const handleChange = (e) => {
@@ -56,6 +38,7 @@ const Tasks = () => {
         if (!newTask.dueDate) {
             return Swal.fire("Error", "Please select a due date!", "error");
         }
+
         // Get the maximum orderIndex from the tasks and add 1
         const maxOrderIndex = tasks.reduce((max, task) => Math.max(max, task.orderIndex), 0);
         const nextOrderIndex = maxOrderIndex + 1;
@@ -65,6 +48,9 @@ const Tasks = () => {
 
         if (res.data) {
             Swal.fire("Success", "Task added!", "success");
+            // After adding the task, fetch tasks again to get the updated list
+            tasksRefetch();
+            setActivityLog([...activityLog, { message: `Task "${newTask.title}" added` }]);
             await axiosPublic.post("/logs", { message: `Task "${newTask.title}" added` });
         }
         setNewTask({ title: "", description: "", category: "To-Do", dueDate: "" });
@@ -84,12 +70,15 @@ const Tasks = () => {
             if (result.isConfirmed) {
                 await axiosPublic.delete(`/tasks/${id}`);
                 await axiosPublic.post("/logs", { message: `Task "${title}" deleted` });
-                fetchTasks();
-                fetchLogs();
+                tasksRefetch();
+                logsRefetch();
+                // Add log to activity log
+                setActivityLog([...activityLog, { message: `Task "${title}" deleted` }]);
                 Swal.fire("Deleted!", "The Task has been deleted.", "success");
             }
         });
     };
+
 
     // Handle Drag & Drop
     const handleDragEnd = async (result) => {
@@ -101,36 +90,35 @@ const Tasks = () => {
         const sourceIndex = source.index;
         const destinationIndex = destination.index;
 
+        let movedTask = tasks.find(task => task.orderIndex === sourceIndex);
+
         // Case 1: Task is reordered within the same category
         if (sourceCategory === destinationCategory) {
             const updatedTasks = [...tasks];
-            const [movedTask] = updatedTasks.splice(sourceIndex, 1);
-            movedTask.orderIndex = destinationIndex; // Update the order index within the same category
-            updatedTasks.splice(destinationIndex, 0, movedTask);
+            const [task] = updatedTasks.splice(sourceIndex, 1);
+            task.orderIndex = destinationIndex; // Update the order index within the same category
+            updatedTasks.splice(destinationIndex, 0, task);
 
-            setTasks(updatedTasks); // Update the tasks in the frontend
-
-            // Send updated task to backend with new order
-            await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
-            await axiosPublic.post("/logs", { message: `Task "${movedTask.title}" reordered in ${destinationCategory}` });
+            // Refetch and update task order
+            tasksRefetch(); // Refetch tasks after reordering
+            await axiosPublic.put(`/tasks/${task._id}`, task);
+            setActivityLog([...activityLog, { message: `Task "${task.title}" reordered in ${destinationCategory}` }]);
+            await axiosPublic.post("/logs", { message: `Task "${task.title}" reordered in ${destinationCategory}` });
         }
 
         // Case 2: Task is moved between categories
         else {
-            const updatedTasks = [...tasks];
-            const [movedTask] = updatedTasks.splice(sourceIndex, 1);
             movedTask.category = destinationCategory; // Update the category of the task
             movedTask.orderIndex = destinationIndex; // Update the order index within the new category
 
-            updatedTasks.splice(destinationIndex, 0, movedTask);
+            tasksRefetch(); // Refetch tasks after moving to another category
 
-            setTasks(updatedTasks); // Update the tasks in the frontend
-
-            // Send updated task to backend with new category and order
             await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
+            setActivityLog([...activityLog, { message: `Task "${movedTask.title}" moved to ${destinationCategory}` }]);
             await axiosPublic.post("/logs", { message: `Task "${movedTask.title}" moved to ${destinationCategory}` });
         }
     };
+
 
     const isOverdue = (dueDate) => {
         const currentDate = new Date();
@@ -138,6 +126,12 @@ const Tasks = () => {
     };
 
     const displayedLogs = showAllLogs ? activityLog : activityLog.slice(0, 10);
+
+    if (tasksLoading || logsLoading) {
+        return <div className="flex items-center justify-center min-h-screen">
+            <div className="spinner-border animate-spin inline-block w-12 h-12 border-4 rounded-full border-purple-500 border-t-transparent"></div>
+        </div>
+    }
 
     return (
         <div className="container mx-auto px-3">
@@ -235,13 +229,16 @@ const Tasks = () => {
             {/* Activity Log Section */}
             <div className="mt-5 bg-purple-100 px-3 rounded-lg">
                 <h3 className="text-xl font-bold mb-3">Activity Log:</h3>
-                <ul>
+                {logs.length === 0 ? (
+                    <p>No logs available.</p>
+                ) : (<ul>
                     {displayedLogs.map((log, index) => (
                         <li key={index} className="text-gray-700">
                             <span className="font-bold">{index + 1}.</span> {log.message}
                         </li>
                     ))}
-                </ul>
+                </ul>)}
+
                 {activityLog.length > 10 && (
                     <button
                         className="btn btn-sm bg-purple-500 text-base-100 hover:bg-purple-700 mt-3"
