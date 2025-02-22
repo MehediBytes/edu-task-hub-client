@@ -18,8 +18,10 @@ const Tasks = () => {
     // Fetch tasks from the backend
     const fetchTasks = async () => {
         const res = await axiosPublic.get("/tasks");
-        setTasks(res.data);
+        const sortedTask = res.data.sort((a, b) => a.orderIndex - b.orderIndex);
+        setTasks(sortedTask);
     };
+
     // Fetch logs from the backend
     const fetchLogs = async () => {
         const res = await axiosPublic.get("/logs");
@@ -54,7 +56,13 @@ const Tasks = () => {
         if (!newTask.dueDate) {
             return Swal.fire("Error", "Please select a due date!", "error");
         }
-        const res = await axiosPublic.post("/tasks", newTask);
+        // Get the maximum orderIndex from the tasks and add 1
+        const maxOrderIndex = tasks.reduce((max, task) => Math.max(max, task.orderIndex), 0);
+        const nextOrderIndex = maxOrderIndex + 1;
+
+        const taskWithOrderIndex = { ...newTask, orderIndex: nextOrderIndex };
+        const res = await axiosPublic.post("/tasks", taskWithOrderIndex);
+
         if (res.data) {
             Swal.fire("Success", "Task added!", "success");
             await axiosPublic.post("/logs", { message: `Task "${newTask.title}" added` });
@@ -75,7 +83,7 @@ const Tasks = () => {
         }).then(async (result) => {
             if (result.isConfirmed) {
                 await axiosPublic.delete(`/tasks/${id}`);
-                await axiosPublic.post("/logs", { message: `Task "${title}" deleted` }); // Log Activity
+                await axiosPublic.post("/logs", { message: `Task "${title}" deleted` });
                 fetchTasks();
                 fetchLogs();
                 Swal.fire("Deleted!", "The Task has been deleted.", "success");
@@ -85,16 +93,43 @@ const Tasks = () => {
 
     // Handle Drag & Drop
     const handleDragEnd = async (result) => {
-        if (!result.destination) return;
-        const updatedTasks = [...tasks];
-        const [movedTask] = updatedTasks.splice(result.source.index, 1);
-        movedTask.category = result.destination.droppableId;
+        if (!result.destination) return; // Do nothing if dropped outside
 
-        updatedTasks.splice(result.destination.index, 0, movedTask);
-        setTasks(updatedTasks);
+        const { source, destination } = result;
+        const sourceCategory = source.droppableId;
+        const destinationCategory = destination.droppableId;
+        const sourceIndex = source.index;
+        const destinationIndex = destination.index;
 
-        await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
-        await axiosPublic.post("/logs", { message: `Task "${movedTask.title}" moved to ${movedTask.category}` });
+        // Case 1: Task is reordered within the same category
+        if (sourceCategory === destinationCategory) {
+            const updatedTasks = [...tasks];
+            const [movedTask] = updatedTasks.splice(sourceIndex, 1);
+            movedTask.orderIndex = destinationIndex; // Update the order index within the same category
+            updatedTasks.splice(destinationIndex, 0, movedTask);
+
+            setTasks(updatedTasks); // Update the tasks in the frontend
+
+            // Send updated task to backend with new order
+            await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
+            await axiosPublic.post("/logs", { message: `Task "${movedTask.title}" reordered in ${destinationCategory}` });
+        }
+
+        // Case 2: Task is moved between categories
+        else {
+            const updatedTasks = [...tasks];
+            const [movedTask] = updatedTasks.splice(sourceIndex, 1);
+            movedTask.category = destinationCategory; // Update the category of the task
+            movedTask.orderIndex = destinationIndex; // Update the order index within the new category
+
+            updatedTasks.splice(destinationIndex, 0, movedTask);
+
+            setTasks(updatedTasks); // Update the tasks in the frontend
+
+            // Send updated task to backend with new category and order
+            await axiosPublic.put(`/tasks/${movedTask._id}`, movedTask);
+            await axiosPublic.post("/logs", { message: `Task "${movedTask.title}" moved to ${destinationCategory}` });
+        }
     };
 
     const isOverdue = (dueDate) => {
@@ -128,7 +163,6 @@ const Tasks = () => {
                 />
 
                 <label>Task Due Date</label>
-                {/* Task Due date */}
                 <input
                     type="date"
                     name="dueDate"
@@ -138,7 +172,6 @@ const Tasks = () => {
                 />
 
                 <label>Task Category</label>
-                {/* Category Dropdown */}
                 <select
                     name="category"
                     className="select select-bordered w-full mb-3"
@@ -164,14 +197,13 @@ const Tasks = () => {
             </div>
 
             <DragDropContext onDragEnd={handleDragEnd}>
-                <div className="grid grid-cols-3 gap-4 mt-5">
-
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
                     {["To-Do", "In Progress", "Done"].map(category => (
                         <Droppable key={category} droppableId={category}>
                             {(provided) => (
                                 <div {...provided.droppableProps}
                                     ref={provided.innerRef}
-                                    className="bg-purple-200 p-4 rounded-lg min-h-[250px]">
+                                    className="bg-purple-200 p-4 rounded-lg min-h-screen">
 
                                     <h2 className="text-xl font-bold mb-3 text-center text-purple-500">{category}</h2>
 
@@ -199,6 +231,7 @@ const Tasks = () => {
                     ))}
                 </div>
             </DragDropContext>
+
             {/* Activity Log Section */}
             <div className="mt-5 bg-purple-100 px-3 rounded-lg">
                 <h3 className="text-xl font-bold mb-3">Activity Log:</h3>
